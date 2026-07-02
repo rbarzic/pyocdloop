@@ -60,6 +60,11 @@ class OpenCodeClient:
         except httpx.HTTPError:
             pass
 
+    async def get_session(self, session_id: str) -> dict:
+        r = await self._client.get(f"/session/{session_id}")
+        r.raise_for_status()
+        return r.json()
+
     async def get_config(self) -> dict:
         r = await self._client.get("/config")
         r.raise_for_status()

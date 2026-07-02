@@ -441,8 +441,24 @@ class OcloopApp(App):
                 self.post_message(_LoopError(f"Failed to send prompt: {exc}"))
                 return
 
-            # Wait for session idle
-            await self._idle_event.wait()
+            # Wait for session idle with timeout and polling fallback
+            IDLE_POLL_INTERVAL = 30  # seconds
+            while not self._idle_event.is_set():
+                try:
+                    await asyncio.wait_for(
+                        self._idle_event.wait(),
+                        timeout=IDLE_POLL_INTERVAL,
+                    )
+                except asyncio.TimeoutError:
+                    # Check if session is still active by querying its status
+                    if self._current_session_id and self._client:
+                        try:
+                            session = await self._client.get_session(self._current_session_id)
+                            if session.get("idle", False):
+                                self._log("info", "Session idle (detected by poll)")
+                                self._idle_event.set()
+                        except Exception as exc:
+                            self._log("info", f"Session status check failed: {exc}")
 
             if self._iter_start_time:
                 self._iter_times.append(time.monotonic() - self._iter_start_time)
